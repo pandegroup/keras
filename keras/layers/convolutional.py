@@ -310,29 +310,39 @@ class Convolution3D(Layer):
         self.activation = activations.get(activation)
         self.border_mode = border_mode
         self.image_shape = image_shape
-
         dtensor5 = T.TensorType('float32', (0,)*5)
         self.input = dtensor5()
-        self.W_shape = (nb_filter, nb_depth, stack_size, nb_row, nb_col)
+
+        if on_gpu():
+            self.W_shape = (nb_filter, nb_depth, stack_size, nb_row, nb_col)
+        else: #cpu
+            self.W_shape = (nb_filter, nb_row, nb_col, nb_depth, stack_size)
+
         self.W = self.init(self.W_shape)
         self.b = shared_zeros((nb_filter,))
-
         self.params = [self.W, self.b]
+
 
         if weights is not None:
             self.set_weights(weights)
 
-    def output(self, train):
+    def get_output(self, train):
+
         X = self.get_input(train)
 
-        conv_out = conv3d(
-            signals=X,
-            filters=self.W,
-            signals_shape=self.image_shape,
-            filters_shape=self.W_shape,
-            border_mode=self.border_mode)
+        if on_gpu():
+            conv_out = theano.tensor.nnet.conv3d2d.conv3d(signals=X,
+	                                                 filters=self.W,
+                                                         signals_shape=self.image_shape,
+                                                         filters_shape=self.W_shape,
+                                                         border_mode=self.border_mode)
+          
+            output = self.activation(conv_out + self.b.dimshuffle('x', 'x',  0, 'x', 'x'))
+        else:
+            conv_out = theano.tensor.nnet.conv3D(V=X, W=self.W, b=self.b, d=(1,1,1))
+            output = self.activation(conv_out + self.b.dimshuffle('x', 'x', 'x', 'x', 0))
 
-        output = self.activation(conv_out + self.b.dimshuffle('x', 'x',  0, 'x', 'x'))
+
         return output
 
     def get_config(self):
