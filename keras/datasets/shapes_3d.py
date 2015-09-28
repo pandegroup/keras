@@ -5,27 +5,37 @@ import math
 import theano
 from ..utils.theano_utils import on_gpu
 
-# Creating Dataset having two categories(Sphere and Cube)
+# Creating dataset with two categories(Sphere and Cube).
+# Each sample has 3d voxel points (stored in a 3D array),
+# points that are part of the shape are set to
+# 1(true), background points to 0(false). 
+
+## This function creates dataset with total "dataset_size" samples.
+# Class of a sample is chosen at random with equal probablity.
+# Based on the "test_split" data is divided in test and train dataset.
+# patch size is the size of 3D array for storing shape points.
 def load_data(test_split=0.2, dataset_size=5000, patch_size=32):
-        if patch_size < 10:
+       if patch_size < 10:
             raise NotImplementedError
 
-        num_labels = 2
+       num_labels = 2
         
-        # Using same probability for each class
-        geometry_types = np.random.randint(0, num_labels, dataset_size)
+       # Using same probability for each class
+       geometry_types = np.random.randint(0, num_labels, dataset_size)
 
-        # Getting the training set
-        y_train = geometry_types[0:abs((1-test_split)*dataset_size)]
-        x_train = __generate_solid_figures(geometry_types=y_train, patch_size=patch_size)
+       # Getting the training set
+       y_train = geometry_types[0:abs((1-test_split)*dataset_size)]
+       x_train = __generate_solid_figures(geometry_types=y_train, patch_size=patch_size)
 
-        # Getting the testing set
-        y_test = geometry_types[abs((1-test_split)*dataset_size):]
-        x_test = __generate_solid_figures(geometry_types=y_test, patch_size=patch_size)
+       # Getting the testing set
+       y_test = geometry_types[abs((1-test_split)*dataset_size):]
+       x_test = __generate_solid_figures(geometry_types=y_test, patch_size=patch_size)
 
-        return (x_train, y_train),(x_test, y_test)
+       return (x_train, y_train),(x_test, y_test)
 
-
+# This function generates a 3D voxel point cloud in a 3D array with all equal dimensions.
+# Based on an array of labels(classes, 0 or 1) provided as an input, shapes are returned 
+# in an array of 3D arrays.
 def __generate_solid_figures(geometry_types, patch_size):
 
         shapes_no = geometry_types.shape[0]
@@ -34,7 +44,6 @@ def __generate_solid_figures(geometry_types, patch_size):
         (x0, y0, z0) = ((patch_size-1)/2,)*3
 
         # Allocate 3D data array, data is in cube(all dimensions are same)
-        # Order of data_holder, (batch, Z, X, Y, 1)
         solid_figures = np.zeros((len(geometry_types), patch_size,
                                   patch_size, patch_size, 1), dtype=np.bool)
 
@@ -50,7 +59,7 @@ def __generate_solid_figures(geometry_types, patch_size):
             y_max = int(min(math.floor(y0+radius), patch_size-1))
             z_max = int(min(math.floor(z0+radius), patch_size-1))
 
-            if geometry_types[i] == 0: # Sphere
+            if geometry_types[i] == 0: # generate Sphere and store in the output array2
                 # We only iterate through the bounding box of the sphere to check whether voxels are inside the sphere
                 radius_squared = radius**2
                 for z in xrange(z_min, z_max+1):
@@ -59,10 +68,14 @@ def __generate_solid_figures(geometry_types, patch_size):
                             if (x-x0)**2 + (y-y0)**2 + (z-z0)**2 <= radius_squared:
                                 # inside the sphere
                                 solid_figures[i, z, x, y, 0] = 1
-            elif geometry_types[i] == 1: # Cube
+            elif geometry_types[i] == 1: # generate Cube and store in the output array
                 solid_figures[i, z_min:z_max+1, x_min:x_max+1, y_min:y_max+1, 0] = 1
             else:
                 raise NotImplementedError
+
+	# Need to order the dataset as per the convolutional layer used.
+        # As conv2d3d.conv3d doesnot support operation on a cpu, we are using nnet.conv3d for training on cpu.
+        # The order of inputs are diferent for both implementation. Hence, the follwing channel shuffling. 
 
         #(http://deeplearning.net/software/theano/library/tensor/nnet/conv.html#theano.tensor.nnet.conv3d2d.conv3d)
         #0 ; batch_size
