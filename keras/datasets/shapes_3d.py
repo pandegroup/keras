@@ -5,16 +5,21 @@ import math
 import theano
 from ..utils.theano_utils import on_gpu
 
-# Creating dataset with two categories(Sphere and Cube).
-# Each sample has 3d voxel points (stored in a 3D array),
-# points that are part of the shape are set to
-# 1(true), background points to 0(false). 
+""" 
+    Creating dataset with two categories of 3D shapes, Sphere and Cube.
+    Each sample is described by 3d voxel points, stored in a 3D array.
+    The voxel points that define a shape (or part of a shape) are set to
+    true(1), the background points to false(0).
+"""
 
-## This function creates dataset with total "dataset_size" samples.
-# Class of a sample is chosen at random with equal probablity.
-# Based on the "test_split" data is divided in test and train dataset.
-# patch size is the size of 3D array for storing shape points.
 def load_data(test_split=0.2, dataset_size=5000, patch_size=32):
+       """
+         The function "load_data" creates a dataset with total "dataset_size" samples.
+         Class of a sample (sphere or cube) is chosen at random with equal probablity.
+         Based on the "test_split", the dataset is divided in test and train subsets.
+         The "patch_size" defines the size of a 3D array for storing shape voxel points.
+       """     
+  
        if patch_size < 10:
             raise NotImplementedError
 
@@ -33,11 +38,12 @@ def load_data(test_split=0.2, dataset_size=5000, patch_size=32):
 
        return (x_train, y_train),(x_test, y_test)
 
-# This function generates a 3D voxel point cloud in a 3D array with all equal dimensions.
-# Based on an array of labels(classes, 0 or 1) provided as an input, shapes are returned 
-# in an array of 3D arrays.
 def __generate_solid_figures(geometry_types, patch_size):
-
+	"""
+   	   This function generates a 3D voxel points based on the class type in a 3D array with all equal dimensions.
+           Based on an array of labels (classes, 0 or 1) provided as an input, shapes are returned 
+           in an array of 3D arrays.
+        """
         shapes_no = geometry_types.shape[0]
 
         # Assuming data is centered
