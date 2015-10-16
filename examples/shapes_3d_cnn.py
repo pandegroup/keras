@@ -57,13 +57,13 @@ nb_pool = [2, 2, 2]
 nb_conv = [7, 5, 3]
 
 model = Sequential()
-model.add(Convolution3D(nb_filters[0], stack_size=1, nb_row=nb_conv[0], nb_col=nb_conv[0], nb_depth=nb_conv[0], border_mode='valid'))
+model.add(Convolution3D(nb_filters[0], 1, nb_row=nb_conv[0], nb_col=nb_conv[0], nb_depth=nb_conv[0], border_mode='valid'))
 model.add(Activation('relu'))
 model.add(MaxPooling3D(poolsize=(nb_pool[0], nb_pool[0], nb_pool[0])))
-model.add(Convolution3D(nb_filters[1], stack_size=nb_filters[0], nb_row=nb_conv[1], nb_col=nb_conv[1], nb_depth=nb_conv[1], border_mode='valid'))
+model.add(Convolution3D(nb_filters[1], nb_filters[0], nb_row=nb_conv[1], nb_col=nb_conv[1], nb_depth=nb_conv[1], border_mode='valid'))
 model.add(Activation('relu'))
 model.add(MaxPooling3D(poolsize=(nb_pool[1], nb_pool[1], nb_pool[1])))
-model.add(Convolution3D(nb_filters[2], stack_size=nb_filters[1], nb_row=nb_conv[2], nb_col=nb_conv[2], nb_depth=nb_conv[2], border_mode='valid'))
+model.add(Convolution3D(nb_filters[2], nb_filters[1], nb_row=nb_conv[2], nb_col=nb_conv[2], nb_depth=nb_conv[2], border_mode='valid'))
 model.add(Activation('relu'))
 model.add(MaxPooling3D(poolsize=(nb_pool[2], nb_pool[2], nb_pool[2])))
 model.add(Flatten())
