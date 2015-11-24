@@ -5,21 +5,25 @@ import theano
 import copy
 
 from ..layers.advanced_activations import LeakyReLU, PReLU
-from ..layers.core import Dense, Merge, Dropout, Activation, Reshape, Flatten, RepeatVector, Layer, AutoEncoder, Masking
-from ..layers.core import ActivityRegularization, TimeDistributedDense, AutoEncoder, MaxoutDense
+from ..layers.core import Dense, Merge, Dropout, Activation, Reshape, Flatten, RepeatVector, Layer, AutoEncoder, Masking, Permute, Lambda, MaskedLambda, LambdaMerge
+from ..layers.core import ActivityRegularization, TimeDistributedDense, TimeDistributedMerge, AutoEncoder, MaxoutDense
 from ..layers.convolutional import Convolution1D, Convolution2D, MaxPooling1D, MaxPooling2D, ZeroPadding2D, Convolution3D, MaxPooling3D
 from ..layers.embeddings import Embedding, WordContextProduct
 from ..layers.noise import GaussianNoise, GaussianDropout
-from ..layers.normalization import BatchNormalization
+from ..layers.normalization import BatchNormalization, LRN2D
 from ..layers.recurrent import SimpleRNN, SimpleDeepRNN, GRU, LSTM, JZS1, JZS2, JZS3
 from ..layers import containers
 from .. import regularizers
 from .. import constraints
 
 
-def container_from_config(original_layer_dict):
+def container_from_config(original_layer_dict, custom_objects={}):
     layer_dict = copy.deepcopy(original_layer_dict)
     name = layer_dict.get('name')
+
+    # Insert custom layers into globals so they can be accessed by `get_from_module`.
+    for cls_key in custom_objects:
+        globals()[cls_key] = custom_objects[cls_key]
 
     if name == 'Merge':
         mode = layer_dict.get('mode')
@@ -70,14 +74,14 @@ def container_from_config(original_layer_dict):
         layer_dict.pop('name')
 
         for k, v in layer_dict.items():
-            # For now, this can only happen for regularizers and constraints
             if isinstance(v, dict):
-                vname = v.get('name')
-                v.pop('name')
+                vname = v.pop('name')
                 if vname in [x for x, y in inspect.getmembers(constraints, predicate=inspect.isclass)]:
                     layer_dict[k] = constraints.get(vname, v)
-                if vname in [x for x, y in inspect.getmembers(regularizers, predicate=inspect.isclass)]:
+                elif vname in [x for x, y in inspect.getmembers(regularizers, predicate=inspect.isclass)]:
                     layer_dict[k] = regularizers.get(vname, v)
+                else: # not a regularizer of constraint, don't touch it
+                    v['name'] = vname
 
         base_layer = get_layer(name, layer_dict)
         return base_layer
