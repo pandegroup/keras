@@ -265,9 +265,12 @@ class Convolution3D(Layer):
         border_mode = self.border_mode
 
         if on_gpu():
+            print "filters_shape: " + str(self.W_shape)
+            print "border_mode: " + str(self.border_mode)
+            print "type(self.border_mode): " + str(type(self.border_mode))
             conv_out = theano.tensor.nnet.conv3d2d.conv3d(signals=X,filters = self.W,
                                                           filters_shape=self.W_shape,
-                                                          border_mode=self.border_mode)
+                                                          border_mode=str(self.border_mode))
             output = self.activation(conv_out + self.b.dimshuffle('x', 'x',  0, 'x', 'x'))
         else:
             conv_out = theano.tensor.nnet.conv3D(V=X, W=self.W, b=self.b, d=(1,1,1))
@@ -281,7 +284,7 @@ class Convolution3D(Layer):
                 "stack_size": self.stack_size,
                 "nb_row": self.nb_row,
                 "nb_col": self.nb_col,
-                "nb_depth": self.nb_depth,
+                "nb_depth": self.depth,
                 "init": self.init.__name__,
                 "activation": self.activation.__name__,
                 "border_mode": self.border_mode,
@@ -436,5 +439,5 @@ class MaxPooling3D(Layer):
 
     def get_config(self):
         return {"name": self.__class__.__name__,
-                "pool_size": self.pool_size,
+                "poolsize": self.pool_size,
                 "ignore_border": self.ignore_border}
