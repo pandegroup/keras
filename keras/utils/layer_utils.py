@@ -126,7 +126,4 @@ def print_layer_shapes(model, input_shapes):
 
 from .generic_utils import get_from_module
 def get_layer(identifier, kwargs=None):
-    print("get_layer()")
-    print("kwargs")
-    print(kwargs)
     return get_from_module(identifier, globals(), 'layer', instantiate=True, kwargs=kwargs)
