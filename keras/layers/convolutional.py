@@ -293,12 +293,16 @@ class Convolution3D(Layer):
                  init='glorot_uniform', activation='linear', weights=None,
                  border_mode='valid', subsample=(1, 1),
                  W_regularizer=None, b_regularizer=None, activity_regularizer=None,
-                 W_constraint=None, b_constraint=None):
+                 W_constraint=None, b_constraint=None,
+                 **kwargs):
 
+        import traceback
+        print("Convolution3D.__init__()")
+        traceback.print_stack()
         if border_mode not in {'valid', 'full', 'same'}:
             raise Exception('Invalid border mode for Convolution2D:', border_mode)
 
-        super(Convolution3D, self).__init__()
+        super(Convolution3D, self).__init__(**kwargs)
         self.init = initializations.get(init)
         self.activation = activations.get(activation)
         self.subsample = subsample
@@ -353,9 +357,6 @@ class Convolution3D(Layer):
         border_mode = self.border_mode
 
         if on_gpu():
-            print "filters_shape: " + str(self.W_shape)
-            print "border_mode: " + str(self.border_mode)
-            print "type(self.border_mode): " + str(type(self.border_mode))
             conv_out = theano.tensor.nnet.conv3d2d.conv3d(signals=X,filters = self.W,
                                                           filters_shape=self.W_shape,
                                                           border_mode=str(self.border_mode))
@@ -367,21 +368,23 @@ class Convolution3D(Layer):
         return output
 
     def get_config(self):
-        return {"name": self.__class__.__name__,
-                "nb_filter": self.nb_filter,
-                "stack_size": self.stack_size,
-                "nb_row": self.nb_row,
-                "nb_col": self.nb_col,
-                "nb_depth": self.depth,
-                "init": self.init.__name__,
-                "activation": self.activation.__name__,
-                "border_mode": self.border_mode,
-                "subsample": self.subsample,
-                "W_regularizer": self.W_regularizer.get_config() if self.W_regularizer else None,
-                "b_regularizer": self.b_regularizer.get_config() if self.b_regularizer else None,
-                "activity_regularizer": self.activity_regularizer.get_config() if self.activity_regularizer else None,
-                "W_constraint": self.W_constraint.get_config() if self.W_constraint else None,
-                "b_constraint": self.b_constraint.get_config() if self.b_constraint else None}
+        config = {"name": self.__class__.__name__,
+                  "nb_filter": self.nb_filter,
+                  "stack_size": self.stack_size,
+                  "nb_row": self.nb_row,
+                  "nb_col": self.nb_col,
+                  "nb_depth": self.depth,
+                  "init": self.init.__name__,
+                  "activation": self.activation.__name__,
+                  "border_mode": self.border_mode,
+                  "subsample": self.subsample,
+                  "W_regularizer": self.W_regularizer.get_config() if self.W_regularizer else None,
+                  "b_regularizer": self.b_regularizer.get_config() if self.b_regularizer else None,
+                  "activity_regularizer": self.activity_regularizer.get_config() if self.activity_regularizer else None,
+                  "W_constraint": self.W_constraint.get_config() if self.W_constraint else None,
+                  "b_constraint": self.b_constraint.get_config() if self.b_constraint else None}
+        base_config = super(Convolution3D, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
 
 
 class MaxPooling1D(Layer):

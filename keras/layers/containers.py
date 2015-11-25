@@ -21,7 +21,10 @@ class Sequential(Layer):
 
     def __init__(self, layers=[]):
         self.layers = []
+        #print("Sequential.__init__()")
         for layer in layers:
+            #print("layer._input_shape")
+            #print(layer._input_shape)
             self.add(layer)
 
     def set_previous(self, layer):
