@@ -296,9 +296,6 @@ class Convolution3D(Layer):
                  W_constraint=None, b_constraint=None,
                  **kwargs):
 
-        import traceback
-        print("Convolution3D.__init__()")
-        traceback.print_stack()
         if border_mode not in {'valid', 'full', 'same'}:
             raise Exception('Invalid border mode for Convolution2D:', border_mode)
 
