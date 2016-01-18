@@ -9,7 +9,6 @@ from .common import _FLOATX, _EPSILON
 # INTERNAL UTILS
 theano.config.floatX = _FLOATX
 
-
 def _on_gpu():
     '''Return whether the session is set to
     run on GPU or not (i.e. on CPU).
@@ -215,6 +214,10 @@ def equal(x, y):
     return T.eq(x, y)
 
 
+def not_equal(x, y):
+    return T.neq(x, y)
+
+
 def maximum(x, y):
     return T.maximum(x, y)
 
@@ -251,6 +254,26 @@ def repeat_elements(x, rep, axis):
     '''
     return T.repeat(x, rep, axis=axis)
 
+
+def resize_images(X, height_factor, width_factor, dim_ordering):
+    '''Resize the images contained in a 4D tensor of shape
+    - [batch, channels, height, width] (for 'th' dim_ordering)
+    - [batch, height, width, channels] (for 'tf' dim_ordering)
+    by a factor of (height_factor, width_factor). Both factors should be
+    positive integers.
+    '''
+    if dim_ordering == 'th':
+        output = repeat_elements(X, height_factor, axis=2)
+        output = repeat_elements(output, width_factor, axis=3)
+        return output
+    elif dim_ordering == 'tf':
+        output = repeat_elements(X, height_factor, axis=1)
+        output = repeat_elements(output, width_factor, axis=2)
+        return output
+    else:
+        raise Exception('Invalid dim_ordering: ' + dim_ordering)
+
+
 def repeat(x, n):
     '''Repeat a 2D tensor.
 
@@ -267,6 +290,10 @@ def tile(x, n):
 
 
 def flatten(x):
+    return T.flatten(x)
+
+
+def batch_flatten(x):
     '''Turn a n-D tensor into a 2D tensor where
     the first dimension is conserved.
     '''
@@ -362,6 +389,7 @@ class Function(object):
                                         allow_input_downcast=True, **kwargs)
 
     def __call__(self, inputs):
+        assert type(inputs) in {list, tuple}
         return self.function(*inputs)
 
 
@@ -375,9 +403,9 @@ def gradients(loss, variables):
 
 # CONTROL FLOW
 
-def rnn(step_function, inputs, initial_states,
-        go_backwards=False, masking=True):
-    '''Iterate over the time dimension of a tensor.
+def rnn(step_function, inputs, output_dim, initial_states,
+        go_backwards=False, mask=None):
+    '''Iterates over the time dimension of a tensor.
 
     Parameters
     ----------
@@ -393,15 +421,15 @@ def rnn(step_function, inputs, initial_states,
             output: tensor with shape (samples, ...) (no time dimension),
             new_states: list of tensors, same length and shapes
                 as 'states'.
+    output_dim:
+        Number of output dimensions
     initial_states: tensor with shape (samples, ...) (no time dimension),
         containing the initial values for the states used in
         the step function.
     go_backwards: boolean. If True, do the iteration over
         the time dimension in reverse order.
-    masking: boolean. If true, any input timestep inputs[s, i]
-        that is all-zeros will be skipped (states will be passed to
-        the next step unchanged) and the corresponding output will
-        be all zeros.
+    mask: binary tensor with shape (samples, time, 1), with a zero for every element
+        that is masked.
 
     Returns
     -------
@@ -414,25 +442,29 @@ def rnn(step_function, inputs, initial_states,
             the step function, of shape (samples, ...).
     '''
     inputs = inputs.dimshuffle((1, 0, 2))
+    if mask is None:
+        mask = expand_dims(ones_like(T.sum(inputs, axis=-1)))
+    else:
+        mask = mask.dimshuffle((1, 0, 2))
 
-    def _step(input, *states):
+    def _step(input, mask, output_tm1, *states):
         output, new_states = step_function(input, states)
-        if masking:
-            # if all-zero input timestep, return
-            # all-zero output and unchanged states
-            switch = T.any(input, axis=-1, keepdims=True)
-            output = T.switch(switch, output, 0. * output)
-            return_states = []
-            for state, new_state in zip(states, new_states):
-                return_states.append(T.switch(switch, new_state, state))
-            return [output] + return_states
-        else:
-            return [output] + new_states
+        # output previous output if masked.
+        output = T.switch(mask, output, output_tm1)
+        return_states = []
+        for state, new_state in zip(states, new_states):
+            return_states.append(T.switch(mask, new_state, state))
+        return [output] + return_states
+
+    # build an all-zero tensor of shape (samples, output_dim)
+    initial_output = T.zeros((inputs.shape[1], output_dim))
+    # Theano gets confused by broadcasting patterns in the scan op
+    initial_output = T.unbroadcast(initial_output, 0, 1)
 
     results, _ = theano.scan(
         _step,
-        sequences=inputs,
-        outputs_info=[None] + initial_states,
+        sequences=[inputs, mask],
+        outputs_info=[initial_output] + initial_states,
         go_backwards=go_backwards)
 
     # deal with Theano API inconsistency
@@ -517,8 +549,12 @@ def dropout(x, level, seed=None):
     return x
 
 
-# CONVOLUTIONS
+def l2_normalize(x, axis):
+    norm = T.sqrt(T.sum(T.square(x), axis=axis, keepdims=True))
+    return x / norm
 
+
+# CONVOLUTIONS
 
 def conv2d(x, kernel, strides=(1, 1), border_mode='valid', dim_ordering='th',
            image_shape=None, filter_shape=None):
@@ -551,8 +587,9 @@ def conv2d(x, kernel, strides=(1, 1), border_mode='valid', dim_ordering='th',
             conv_out = dnn.dnn_conv(img=x,
                                     kerns=kernel,
                                     border_mode='full')
-            shift_x = (kernel.shape[2] - 1) // 2
-            shift_y = (kernel.shape[3] - 1) // 2
+            np_kernel = kernel.eval()
+            shift_x = (np_kernel.shape[2] - 1) // 2
+            shift_y = (np_kernel.shape[3] - 1) // 2
             conv_out = conv_out[:, :,
                                 shift_x:x.shape[2] + shift_x,
                                 shift_y:x.shape[3] + shift_y]
@@ -576,8 +613,9 @@ def conv2d(x, kernel, strides=(1, 1), border_mode='valid', dim_ordering='th',
                                       image_shape=image_shape,
                                       filter_shape=filter_shape)
         if border_mode == 'same':
-            shift_x = (kernel.shape[2] - 1) // 2
-            shift_y = (kernel.shape[3] - 1) // 2
+            np_kernel = kernel.eval()
+            shift_x = (np_kernel.shape[2] - 1) // 2
+            shift_y = (np_kernel.shape[3] - 1) // 2
             conv_out = conv_out[:, :,
                                 shift_x:x.shape[2] + shift_x,
                                 shift_y:x.shape[3] + shift_y]
